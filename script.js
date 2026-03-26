@@ -1,5 +1,5 @@
 // ── CONFIG ───────────────────────────────────────────
-const WEBHOOK   = 'https://n8n.srv1504760.hstgr.cloud/webhook-test/aria-voice';
+const WEBHOOK   = 'https://n8n.srv1504760.hstgr.cloud/webhook/aria-voice';
 const SESSION_ID = 'sess_' + Date.now();
 
 // ── STATE ─────────────────────────────────────────────
