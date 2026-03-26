@@ -1,0 +1,264 @@
+// ── CONFIG ───────────────────────────────────────────
+const WEBHOOK   = 'https://n8n.srv1504760.hstgr.cloud/webhook/aria-voice';
+const SESSION_ID = 'sess_' + Date.now();
+
+// ── STATE ─────────────────────────────────────────────
+let isListening  = false;
+let isProcessing = false;
+let recognition;
+let audioCtx;
+
+// ── DOM REFS ──────────────────────────────────────────
+const chatWindow      = document.getElementById('chatWindow');
+const textInput       = document.getElementById('textInput');
+const micBtn          = document.getElementById('micBtn');
+const micLabel        = document.getElementById('micLabel');
+const micIcon         = document.getElementById('micIcon');
+const typingIndicator = document.getElementById('typingIndicator');
+const statusText      = document.getElementById('statusText');
+const statusDot       = document.querySelector('.status-dot');
+const avatar          = document.getElementById('avatar');
+const avatarRing      = document.getElementById('avatarRing');
+
+// ── ON LOAD ───────────────────────────────────────────
+window.addEventListener('load', () => {
+  // Speak welcome message with browser TTS on load
+  setTimeout(() => {
+    speakBrowser("G'day! I'm Aria, your receptionist at Greenfield Medical Centre. How can I help you today?");
+  }, 800);
+});
+
+// ── KEYBOARD ──────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter') sendText();
+}
+
+// ── SEND TEXT ─────────────────────────────────────────
+function sendText() {
+  const msg = textInput.value.trim();
+  if (!msg || isProcessing) return;
+  textInput.value = '';
+  sendToAria(msg);
+}
+
+// ── MIC TOGGLE ────────────────────────────────────────
+function toggleListening() {
+  if (isProcessing) return;
+  isListening ? stopListening() : startListening();
+}
+
+function startListening() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert('Voice input requires Chrome browser. Please type your message instead.');
+    return;
+  }
+
+  recognition = new SR();
+  recognition.lang          = 'en-AU';
+  recognition.continuous    = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isListening = true;
+    setUI('listening');
+  };
+
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    textInput.value  = transcript;
+    stopListening();
+    sendToAria(transcript);
+  };
+
+  recognition.onerror = () => {
+    stopListening();
+    setUI('idle');
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    if (!isProcessing) setUI('idle');
+  };
+
+  recognition.start();
+}
+
+function stopListening() {
+  if (recognition) recognition.stop();
+  isListening = false;
+}
+
+// ── MAIN: SEND TO n8n ─────────────────────────────────
+async function sendToAria(userText) {
+  if (!userText || isProcessing) return;
+
+  addMessage('user', userText);
+  isProcessing = true;
+  setUI('processing');
+  showTyping(true);
+
+  try {
+    const res = await fetch(WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text:      userText,
+        sessionId: SESSION_ID
+      })
+    });
+
+    if (!res.ok) throw new Error('Network error: ' + res.status);
+
+    const data = await res.json();
+    showTyping(false);
+
+    const replyText = data.text || "Sorry, I didn't catch that. Could you please try again?";
+    addMessage('aria', replyText);
+
+    // Play ElevenLabs audio if returned, else browser TTS fallback
+    if (data.audio) {
+      await playBase64Audio(data.audio);
+    } else {
+      speakBrowser(replyText);
+    }
+
+  } catch (err) {
+    console.error('Aria error:', err);
+    showTyping(false);
+    const errMsg = "Sorry, I'm having a little trouble connecting right now. Please try again or call us on (02) 9876 5432.";
+    addMessage('aria', errMsg);
+    speakBrowser(errMsg);
+  } finally {
+    isProcessing = false;
+    textInput.value = '';
+    setUI('idle');
+  }
+}
+
+// ── PLAY ELEVENLABS AUDIO (base64 mp3) ───────────────
+async function playBase64Audio(base64) {
+  try {
+    const binary     = atob(base64);
+    const bytes      = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    const buffer = await audioCtx.decodeAudioData(bytes.buffer);
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioCtx.destination);
+
+    setSpeaking(true);
+
+    return new Promise((resolve) => {
+      source.onended = () => { setSpeaking(false); resolve(); };
+      source.start(0);
+    });
+
+  } catch (e) {
+    console.error('Audio playback error:', e);
+    setSpeaking(false);
+  }
+}
+
+// ── BROWSER TTS FALLBACK ──────────────────────────────
+function speakBrowser(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang  = 'en-AU';
+  utterance.rate  = 0.92;
+  utterance.pitch = 1.05;
+
+  // Try to find an Australian voice
+  const voices  = speechSynthesis.getVoices();
+  const auVoice = voices.find(v =>
+    v.lang === 'en-AU' ||
+    v.name.includes('Australian') ||
+    v.name.includes('Karen') ||
+    v.name.includes('Catherine') ||
+    v.name.includes('Zira')
+  );
+  if (auVoice) utterance.voice = auVoice;
+
+  setSpeaking(true);
+  utterance.onend  = () => setSpeaking(false);
+  utterance.onerror = () => setSpeaking(false);
+  speechSynthesis.speak(utterance);
+}
+
+// Voices load asynchronously in some browsers
+window.speechSynthesis.onvoiceschanged = () => {};
+
+// ── UI STATE MACHINE ──────────────────────────────────
+function setUI(state) {
+  micBtn.classList.remove('listening', 'processing');
+
+  switch (state) {
+    case 'listening':
+      micBtn.classList.add('listening');
+      micLabel.textContent = 'Listening... tap to stop';
+      statusText.textContent = 'Listening...';
+      statusDot.className = 'status-dot listening';
+      break;
+
+    case 'processing':
+      micBtn.classList.add('processing');
+      micLabel.textContent = 'Processing...';
+      statusText.textContent = 'Aria is thinking...';
+      statusDot.className = 'status-dot thinking';
+      break;
+
+    default: // idle
+      micLabel.textContent = 'Tap to speak';
+      statusText.textContent = 'Online & Ready';
+      statusDot.className = 'status-dot';
+      break;
+  }
+}
+
+function setSpeaking(active) {
+  if (active) {
+    avatar.classList.add('speaking');
+    avatarRing.classList.add('speaking');
+    statusText.textContent = 'Aria is speaking...';
+  } else {
+    avatar.classList.remove('speaking');
+    avatarRing.classList.remove('speaking');
+    statusText.textContent = 'Online & Ready';
+  }
+}
+
+function showTyping(show) {
+  typingIndicator.classList.toggle('active', show);
+  if (show) chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+// ── ADD MESSAGE ───────────────────────────────────────
+function addMessage(role, text) {
+  const wrap   = document.createElement('div');
+  wrap.className = `message ${role === 'aria' ? 'aria-msg' : 'user-msg'}`;
+
+  const av  = document.createElement('div');
+  av.className = 'msg-avatar';
+  av.textContent = role === 'aria' ? 'A' : 'You';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = text;
+
+  wrap.appendChild(av);
+  wrap.appendChild(bubble);
+
+  chatWindow.appendChild(wrap);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+// ── CLEAR CHAT ────────────────────────────────────────
+function clearChat() {
+  chatWindow.innerHTML = '';
+  addMessage('aria', "Chat cleared! How can I help you today?");
+}
