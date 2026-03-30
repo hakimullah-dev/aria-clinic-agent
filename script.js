@@ -1,12 +1,15 @@
 // ── CONFIG ───────────────────────────────────────────
-const WEBHOOK   = 'https://n8n.srv1504760.hstgr.cloud/webhook/aria-voice';
-const SESSION_ID = 'sess_' + Date.now();
+const WEBHOOK = 'https://n8n.srv1504760.hstgr.cloud/webhook/aria-voice';
 
 // ── STATE ─────────────────────────────────────────────
 let isListening  = false;
 let isProcessing = false;
 let recognition;
 let audioCtx;
+
+// ── MEMORY: session + conversation history ────────────
+let sessionId           = 'sess_' + crypto.randomUUID();
+let conversationHistory = [];
 
 // ── DOM REFS ──────────────────────────────────────────
 const chatWindow      = document.getElementById('chatWindow');
@@ -22,7 +25,6 @@ const avatarRing      = document.getElementById('avatarRing');
 
 // ── ON LOAD ───────────────────────────────────────────
 window.addEventListener('load', () => {
-  // Speak welcome message with browser TTS on load
   setTimeout(() => {
     speakBrowser("G'day! I'm Aria, your receptionist at Greenfield Medical Centre. How can I help you today?");
   }, 800);
@@ -55,8 +57,8 @@ function startListening() {
   }
 
   recognition = new SR();
-  recognition.lang          = 'en-AU';
-  recognition.continuous    = false;
+  recognition.lang           = 'en-AU';
+  recognition.continuous     = false;
   recognition.interimResults = false;
 
   recognition.onstart = () => {
@@ -103,8 +105,9 @@ async function sendToAria(userText) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text:      userText,
-        sessionId: SESSION_ID
+        text:       userText,
+        session_id: sessionId,            // ← MEMORY: send session ID
+        history:    conversationHistory   // ← MEMORY: send full history
       })
     });
 
@@ -113,10 +116,14 @@ async function sendToAria(userText) {
     const data = await res.json();
     showTyping(false);
 
+    // ── MEMORY: save the updated history returned by n8n ──
+    if (data.history && Array.isArray(data.history)) {
+      conversationHistory = data.history;
+    }
+
     const replyText = data.text || "Sorry, I didn't catch that. Could you please try again?";
     addMessage('aria', replyText);
 
-    // Play ElevenLabs audio if returned, else browser TTS fallback
     if (data.audio) {
       await playBase64Audio(data.audio);
     } else {
@@ -139,8 +146,8 @@ async function sendToAria(userText) {
 // ── PLAY ELEVENLABS AUDIO (base64 mp3) ───────────────
 async function playBase64Audio(base64) {
   try {
-    const binary     = atob(base64);
-    const bytes      = new Uint8Array(binary.length);
+    const binary = atob(base64);
+    const bytes  = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -168,12 +175,11 @@ function speakBrowser(text) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang  = 'en-AU';
-  utterance.rate  = 0.92;
-  utterance.pitch = 1.05;
+  const utterance  = new SpeechSynthesisUtterance(text);
+  utterance.lang   = 'en-AU';
+  utterance.rate   = 0.92;
+  utterance.pitch  = 1.05;
 
-  // Try to find an Australian voice
   const voices  = speechSynthesis.getVoices();
   const auVoice = voices.find(v =>
     v.lang === 'en-AU' ||
@@ -185,12 +191,11 @@ function speakBrowser(text) {
   if (auVoice) utterance.voice = auVoice;
 
   setSpeaking(true);
-  utterance.onend  = () => setSpeaking(false);
+  utterance.onend   = () => setSpeaking(false);
   utterance.onerror = () => setSpeaking(false);
   speechSynthesis.speak(utterance);
 }
 
-// Voices load asynchronously in some browsers
 window.speechSynthesis.onvoiceschanged = () => {};
 
 // ── UI STATE MACHINE ──────────────────────────────────
@@ -200,22 +205,22 @@ function setUI(state) {
   switch (state) {
     case 'listening':
       micBtn.classList.add('listening');
-      micLabel.textContent = 'Listening... tap to stop';
+      micLabel.textContent   = 'Listening... tap to stop';
       statusText.textContent = 'Listening...';
-      statusDot.className = 'status-dot listening';
+      statusDot.className    = 'status-dot listening';
       break;
 
     case 'processing':
       micBtn.classList.add('processing');
-      micLabel.textContent = 'Processing...';
+      micLabel.textContent   = 'Processing...';
       statusText.textContent = 'Aria is thinking...';
-      statusDot.className = 'status-dot thinking';
+      statusDot.className    = 'status-dot thinking';
       break;
 
-    default: // idle
-      micLabel.textContent = 'Tap to speak';
+    default:
+      micLabel.textContent   = 'Tap to speak';
       statusText.textContent = 'Online & Ready';
-      statusDot.className = 'status-dot';
+      statusDot.className    = 'status-dot';
       break;
   }
 }
@@ -239,15 +244,15 @@ function showTyping(show) {
 
 // ── ADD MESSAGE ───────────────────────────────────────
 function addMessage(role, text) {
-  const wrap   = document.createElement('div');
+  const wrap     = document.createElement('div');
   wrap.className = `message ${role === 'aria' ? 'aria-msg' : 'user-msg'}`;
 
-  const av  = document.createElement('div');
-  av.className = 'msg-avatar';
+  const av       = document.createElement('div');
+  av.className   = 'msg-avatar';
   av.textContent = role === 'aria' ? 'A' : 'You';
 
-  const bubble = document.createElement('div');
-  bubble.className = 'msg-bubble';
+  const bubble       = document.createElement('div');
+  bubble.className   = 'msg-bubble';
   bubble.textContent = text;
 
   wrap.appendChild(av);
@@ -259,6 +264,10 @@ function addMessage(role, text) {
 
 // ── CLEAR CHAT ────────────────────────────────────────
 function clearChat() {
+  // ── MEMORY: reset session and history on clear ────
+  sessionId           = 'sess_' + crypto.randomUUID();
+  conversationHistory = [];
+
   chatWindow.innerHTML = '';
   addMessage('aria', "Chat cleared! How can I help you today?");
 }
