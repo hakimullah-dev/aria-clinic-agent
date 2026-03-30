@@ -91,6 +91,28 @@ function stopListening() {
   isListening = false;
 }
 
+// ── MARKDOWN RENDERER ─────────────────────────────────
+// Converts basic markdown to clean HTML for chat bubbles
+function renderMarkdown(text) {
+  if (!text) return '';
+
+  return text
+    // Bold: **text** or __text__
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.*?)__/g, '<strong>$1</strong>')
+    // Italic: *text* or _text_
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/_(.*?)_/g, '<em>$1</em>')
+    // Bullet list lines: "- item" or "• item"
+    .replace(/^[•\-]\s+(.+)$/gm, '<li>$1</li>')
+    // Numbered list: "1. item"
+    .replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>')
+    // Wrap consecutive <li> in <ul>
+    .replace(/(<li>.*<\/li>(\n|$))+/g, (match) => `<ul style="margin:6px 0 6px 16px;padding:0">${match}</ul>`)
+    // Line breaks
+    .replace(/\n/g, '<br>');
+}
+
 // ── MAIN: SEND TO n8n ─────────────────────────────────
 async function sendToAria(userText) {
   if (!userText || isProcessing) return;
@@ -100,14 +122,23 @@ async function sendToAria(userText) {
   setUI('processing');
   showTyping(true);
 
+  // Calculate today's date on the frontend as a backup for GPT
+  const now = new Date();
+  const todayISO     = now.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }); // YYYY-MM-DD
+  const tomorrowDate = new Date(now);
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowISO  = tomorrowDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+
   try {
     const res = await fetch(WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text:       userText,
-        session_id: sessionId,            // ← MEMORY: send session ID
-        history:    conversationHistory   // ← MEMORY: send full history
+        text:         userText,
+        session_id:   sessionId,
+        history:      conversationHistory,
+        today_date:   todayISO,      // ← FIX: send real date to n8n
+        tomorrow_date: tomorrowISO   // ← FIX: send real tomorrow date
       })
     });
 
@@ -116,7 +147,7 @@ async function sendToAria(userText) {
     const data = await res.json();
     showTyping(false);
 
-    // ── MEMORY: save the updated history returned by n8n ──
+    // Save updated history returned by n8n
     if (data.history && Array.isArray(data.history)) {
       conversationHistory = data.history;
     }
@@ -175,7 +206,16 @@ function speakBrowser(text) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
 
-  const utterance  = new SpeechSynthesisUtterance(text);
+  // Strip any markdown before speaking
+  const plainText = text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/^[•\-]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '');
+
+  const utterance  = new SpeechSynthesisUtterance(plainText);
   utterance.lang   = 'en-AU';
   utterance.rate   = 0.92;
   utterance.pitch  = 1.05;
@@ -251,9 +291,16 @@ function addMessage(role, text) {
   av.className   = 'msg-avatar';
   av.textContent = role === 'aria' ? 'A' : 'You';
 
-  const bubble       = document.createElement('div');
-  bubble.className   = 'msg-bubble';
-  bubble.textContent = text;
+  const bubble     = document.createElement('div');
+  bubble.className = 'msg-bubble';
+
+  if (role === 'aria') {
+    // FIX: render markdown for Aria's messages
+    bubble.innerHTML = renderMarkdown(text);
+  } else {
+    // User messages stay as plain text (safe — no innerHTML for user input)
+    bubble.textContent = text;
+  }
 
   wrap.appendChild(av);
   wrap.appendChild(bubble);
@@ -264,7 +311,7 @@ function addMessage(role, text) {
 
 // ── CLEAR CHAT ────────────────────────────────────────
 function clearChat() {
-  // ── MEMORY: reset session and history on clear ────
+  // Reset session and history on clear
   sessionId           = 'sess_' + crypto.randomUUID();
   conversationHistory = [];
 
