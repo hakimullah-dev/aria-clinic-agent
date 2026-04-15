@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/aria.js": {
+      "maxDuration": 30
+    }
+  }
+}
