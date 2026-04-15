@@ -14,11 +14,16 @@ export default async function handler(req, res) {
     });
 
     const text = await response.text();
+    console.log('n8n raw response:', text); // DEBUG
+
     let data;
     try { data = JSON.parse(text); } catch(e) { data = { text: text }; }
+
+    console.log('parsed data:', JSON.stringify(data)); // DEBUG
     return res.status(200).json(data);
 
   } catch (err) {
-    return res.status(500).json({ error: 'Proxy error', detail: err.message });
+    console.error('Proxy error:', err.message);
+    return res.status(500).json({ error: err.message });
   }
 }
