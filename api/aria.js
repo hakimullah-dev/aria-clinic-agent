@@ -1,3 +1,9 @@
+export const config = {
+  api: {
+    bodyParser: true,
+  },
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -12,30 +18,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Manual body parse karo — Vercel sometimes req.body undefined hota hai
-    let body = req.body;
-    if (!body || typeof body === 'undefined') {
-      const chunks = [];
-      for await (const chunk of req) {
-        chunks.push(chunk);
-      }
-      body = JSON.parse(Buffer.concat(chunks).toString());
-    }
-
     const response = await fetch('https://n8n.srv1504760.hstgr.cloud/webhook/aria-agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(req.body)
     });
 
-    if (!response.ok) {
-      const text = await response.text();
-      return res.status(502).json({ error: 'n8n error', detail: text });
-    }
-
-    const data = await response.json();
+    const text = await response.text();
+    const data = JSON.parse(text);
     return res.status(200).json(data);
+
   } catch (err) {
-    return res.status(500).json({ error: 'Proxy error', detail: err.message });
+    return res.status(500).json({ 
+      error: 'Proxy error', 
+      detail: err.message 
+    });
   }
 }
