@@ -12,10 +12,20 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Manual body parse karo — Vercel sometimes req.body undefined hota hai
+    let body = req.body;
+    if (!body || typeof body === 'undefined') {
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      body = JSON.parse(Buffer.concat(chunks).toString());
+    }
+
     const response = await fetch('https://n8n.srv1504760.hstgr.cloud/webhook/aria-agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify(body)
     });
 
     if (!response.ok) {
