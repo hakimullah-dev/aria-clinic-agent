@@ -3,136 +3,772 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aria — Greenfield Medical Centre</title>
+  <title>Aria — AI Clinic Receptionist</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #21262d;
+      --border:    rgba(255,255,255,0.08);
+      --teal:      #00d4aa;
+      --teal-dim:  #00a884;
+      --white:     #f0f6fc;
+      --muted:     #8b949e;
+      --user-bg:   #1f6feb;
+      --danger:    #f85149;
+      --radius:    16px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── BACKGROUND ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 600px 400px at 10% 20%, rgba(0,212,170,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 400px 600px at 90% 80%, rgba(31,111,235,0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── LAYOUT ── */
+    .app {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      height: 100vh;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    /* ── LEFT PANEL ── */
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .clinic-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+    }
+
+    .clinic-logo {
+      width: 48px; height: 48px;
+      background: linear-gradient(135deg, var(--teal), #00a884);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+    }
+
+    .clinic-logo svg { width: 24px; height: 24px; }
+
+    .clinic-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      color: var(--white);
+      margin-bottom: 4px;
+    }
+
+    .clinic-tagline {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    /* Avatar */
+    .avatar-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      text-align: center;
+    }
+
+    .avatar-wrap {
+      position: relative;
+      width: 90px; height: 90px;
+      margin: 0 auto 16px;
+    }
+
+    .avatar-ring {
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      background: linear-gradient(135deg, var(--teal), var(--user-bg)) border-box;
+      -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: destination-out;
+      mask-composite: exclude;
+      animation: spin 8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .avatar-ring.speaking {
+      animation: spin 1s linear infinite;
+      border-color: var(--teal);
+    }
+
+    .avatar-inner {
+      width: 90px; height: 90px;
+      border-radius: 50%;
+      background: var(--surface2);
+      display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border);
+      transition: all 0.3s;
+    }
+
+    .avatar-inner.speaking {
+      background: rgba(0,212,170,0.1);
+      box-shadow: 0 0 30px rgba(0,212,170,0.2);
+    }
+
+    .avatar-inner svg { width: 40px; height: 40px; }
+
+    .aria-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 26px;
+      color: var(--white);
+      margin-bottom: 4px;
+    }
+
+    .aria-role {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,212,170,0.1);
+      border: 1px solid rgba(0,212,170,0.2);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 12px;
+      color: var(--teal);
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--teal);
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    .status-dot.listening { background: var(--danger); animation: blink 0.5s ease-in-out infinite; }
+    .status-dot.thinking  { background: #e3b341; animation: blink 0.8s ease-in-out infinite; }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* Info */
+    .info-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .info-row svg { flex-shrink: 0; margin-top: 1px; color: var(--teal); }
+
+    .emergency {
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #ffa29e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .emergency strong { color: var(--danger); }
+
+    /* ── CHAT PANEL ── */
+    .chat-panel {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chat-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      color: var(--white);
+    }
+
+    .chat-hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .clear-btn {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .clear-btn:hover { background: var(--surface2); color: var(--white); }
+
+    /* Messages */
+    .chat-window {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scroll-behavior: smooth;
+    }
+
+    .chat-window::-webkit-scrollbar { width: 4px; }
+    .chat-window::-webkit-scrollbar-track { background: transparent; }
+    .chat-window::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .message {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      animation: msgIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .user-msg { flex-direction: row-reverse; }
+
+    .msg-av {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 500;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--teal), var(--teal-dim));
+      color: var(--bg);
+    }
+
+    .user-msg .msg-av {
+      background: var(--user-bg);
+      color: white;
+    }
+
+    .msg-bubble {
+      max-width: 65%;
+      padding: 11px 15px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .aria-msg .msg-bubble {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--white);
+      border-bottom-left-radius: 4px;
+    }
+
+    .user-msg .msg-bubble {
+      background: var(--user-bg);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    /* Typing */
+    .typing {
+      display: none;
+      align-items: flex-end;
+      gap: 10px;
+      padding: 0 24px 12px;
+    }
+
+    .typing.active { display: flex; }
+
+    .typing-dots {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      border-bottom-left-radius: 4px;
+      padding: 12px 16px;
+      display: flex; gap: 4px;
+    }
+
+    .typing-dots span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--teal);
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%,60%,100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-7px); opacity: 1; }
+    }
+
+    /* Input */
+    .input-area {
+      padding: 14px 24px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .text-input {
+      flex: 1;
+      padding: 11px 16px;
+      border-radius: 50px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .text-input:focus { border-color: var(--teal); }
+    .text-input::placeholder { color: var(--muted); }
+
+    .send-btn {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      border: none;
+      background: var(--teal);
+      color: var(--bg);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .send-btn:hover { background: var(--teal-dim); transform: scale(1.05); }
+    .send-btn:active { transform: scale(0.95); }
+
+    .mic-row {
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .mic-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px;
+      border-radius: 50px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mic-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+    .mic-btn.listening {
+      background: rgba(248,81,73,0.1);
+      border-color: var(--danger);
+      color: var(--danger);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .mic-btn.processing {
+      background: rgba(227,179,65,0.1);
+      border-color: #e3b341;
+      color: #e3b341;
+    }
+
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(248,81,73,0.3); }
+      50% { box-shadow: 0 0 0 8px rgba(248,81,73,0); }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      html, body { overflow: auto; }
+      .app { flex-direction: column; height: auto; min-height: 100vh; padding: 12px; gap: 12px; }
+      .sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; }
+      .clinic-card { flex: 1; min-width: 140px; }
+      .avatar-section { flex: 1; min-width: 160px; }
+      .info-card { width: 100%; }
+      .chat-panel { min-height: 65vh; }
+      .msg-bubble { max-width: 80%; }
+    }
+  </style>
 </head>
 <body>
 
-  <div class="bg-orbs">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
-  </div>
+<div class="app">
 
-  <div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
 
-    <!-- LEFT PANEL -->
-    <div class="panel-left">
-      <div class="clinic-brand">
-        <div class="clinic-logo">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <rect width="32" height="32" rx="10" fill="white" fill-opacity="0.15"/>
-            <path d="M16 7v18M7 16h18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+    <div class="clinic-card">
+      <div class="clinic-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </div>
+      <div class="clinic-name">Greenfield</div>
+      <div class="clinic-tagline">Medical Centre</div>
+    </div>
+
+    <div class="avatar-section">
+      <div class="avatar-wrap">
+        <div class="avatar-ring" id="avatarRing"></div>
+        <div class="avatar-inner" id="avatar">
+          <svg viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="18" r="9" fill="rgba(0,212,170,0.9)"/>
+            <path d="M8 42c0-8.837 7.163-16 16-16s16 7.163 16 16" stroke="rgba(0,212,170,0.9)" stroke-width="2.5" stroke-linecap="round"/>
           </svg>
         </div>
-        <div>
-          <div class="clinic-name">Greenfield</div>
-          <div class="clinic-sub">Medical Centre</div>
-        </div>
       </div>
-
-      <div class="aria-hero">
-        <div class="avatar-wrap">
-          <div class="avatar-ring" id="avatarRing"></div>
-          <div class="avatar" id="avatar">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="18" r="9" fill="white" fill-opacity="0.9"/>
-              <path d="M8 40c0-8.837 7.163-16 16-16s16 7.163 16 16" stroke="white" stroke-opacity="0.9" stroke-width="2.5" stroke-linecap="round"/>
-            </svg>
-          </div>
-        </div>
-        <h1 class="aria-name">Aria</h1>
-        <p class="aria-title">AI Clinic Receptionist</p>
-        <div class="status-badge" id="statusBadge">
-          <span class="status-dot"></span>
-          <span id="statusText">Online &amp; Ready</span>
-        </div>
+      <div class="aria-name">Aria</div>
+      <div class="aria-role">AI Receptionist</div>
+      <div class="status-pill" id="statusPill">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Online & Ready</span>
       </div>
+    </div>
 
-      <div class="clinic-info">
-        <div class="info-item">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          <span>Mon–Fri: 8am–6pm · Sat: 9am–1pm</span>
-        </div>
-        <div class="info-item">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          <span>142 George St, Parramatta NSW</span>
-        </div>
-        <div class="info-item">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 12 19.79 19.79 0 0 1 1.08 3.4 2 2 0 0 1 3.06 1.24h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 8.14a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 15z"/></svg>
-          <span>(02) 9876 5432</span>
-        </div>
+    <div class="info-card">
+      <div class="info-row">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span>Mon–Fri 8am–6pm · Sat 9am–1pm</span>
       </div>
-
-      <div class="emergency-note">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      <div class="info-row">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span>142 George St, Parramatta NSW</span>
+      </div>
+      <div class="info-row">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 12 19.79 19.79 0 0 1 1.08 3.4 2 2 0 0 1 3.06 1.24h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 8.14a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 15z"/></svg>
+        <span>(02) 9876 5432</span>
+      </div>
+      <div class="emergency">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
         Emergency? Call <strong>000</strong>
       </div>
     </div>
 
-    <!-- RIGHT PANEL -->
-    <div class="panel-right">
+  </div>
 
-      <div class="chat-header">
-        <div class="chat-header-info">
-          <span class="chat-title">Chat with Aria</span>
-          <span class="chat-hint">Ask about appointments, services, or timings</span>
-        </div>
-        <button class="clear-btn" onclick="clearChat()" title="Clear chat">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+  <!-- CHAT -->
+  <div class="chat-panel">
+    <div class="chat-header">
+      <div>
+        <div class="chat-title">Chat with Aria</div>
+        <div class="chat-hint">Ask about appointments, doctors or services</div>
+      </div>
+      <button class="clear-btn" onclick="clearChat()" title="Clear">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+      </button>
+    </div>
+
+    <div class="chat-window" id="chatWindow">
+      <div class="message aria-msg">
+        <div class="msg-av">A</div>
+        <div class="msg-bubble">G'day! I'm Aria, your AI receptionist at Greenfield Medical Centre. How can I help you today?</div>
+      </div>
+    </div>
+
+    <div class="typing" id="typing">
+      <div class="msg-av">A</div>
+      <div class="typing-dots"><span></span><span></span><span></span></div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <input type="text" id="textInput" class="text-input" placeholder="Type your message..." onkeypress="handleKey(event)" autocomplete="off"/>
+        <button class="send-btn" onclick="sendText()">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
       </div>
-
-      <div class="chat-window" id="chatWindow">
-        <div class="message aria-msg" id="welcomeMsg">
-          <div class="msg-avatar">A</div>
-          <div class="msg-bubble">
-            G'day! I'm Aria, your receptionist at Greenfield Medical Centre. How can I help you today?
-          </div>
-        </div>
+      <div class="mic-row">
+        <button class="mic-btn" id="micBtn" onclick="toggleMic()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <span id="micLabel">Tap to speak</span>
+        </button>
       </div>
-
-      <div class="typing-indicator" id="typingIndicator">
-        <div class="msg-avatar">A</div>
-        <div class="typing-dots">
-          <span></span><span></span><span></span>
-        </div>
-      </div>
-
-      <div class="input-area">
-        <div class="input-row">
-          <input
-            type="text"
-            id="textInput"
-            class="text-input"
-            placeholder="Type your message..."
-            onkeypress="handleKey(event)"
-            autocomplete="off"
-          />
-          <button class="send-btn" onclick="sendText()" id="sendBtn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          </button>
-        </div>
-        <div class="mic-row">
-          <button class="mic-btn" id="micBtn" onclick="toggleListening()">
-            <svg id="micIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-            <span id="micLabel">Tap to speak</span>
-          </button>
-          <!-- <span class="lang-note">Supports English · Hindi · Arabic · Punjabi · Mandarin</span> -->
-        </div>
-      </div>
-
     </div>
   </div>
 
-  <script src="script.js"></script>
+</div>
+
+<script>
+  // ── CONFIG ──────────────────────────────────────────
+  const WEBHOOK = '/api/aria';
+
+  // ── STATE ───────────────────────────────────────────
+  let isListening  = false;
+  let isProcessing = false;
+  let recognition;
+  let audioCtx;
+  let sessionId           = 'sess_' + Math.random().toString(36).slice(2);
+  let conversationHistory = [];
+
+  // ── DOM ─────────────────────────────────────────────
+  const chatWindow = document.getElementById('chatWindow');
+  const textInput  = document.getElementById('textInput');
+  const typing     = document.getElementById('typing');
+  const statusDot  = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const avatar     = document.getElementById('avatar');
+  const avatarRing = document.getElementById('avatarRing');
+  const micBtn     = document.getElementById('micBtn');
+  const micLabel   = document.getElementById('micLabel');
+
+  // ── INIT ────────────────────────────────────────────
+  window.addEventListener('load', () => {
+    setTimeout(() => speakBrowser("G'day! I'm Aria, your receptionist at Greenfield Medical Centre. How can I help you today?"), 600);
+  });
+
+  // ── KEYBOARD ────────────────────────────────────────
+  function handleKey(e) { if (e.key === 'Enter') sendText(); }
+
+  function sendText() {
+    const msg = textInput.value.trim();
+    if (!msg || isProcessing) return;
+    textInput.value = '';
+    sendToAria(msg);
+  }
+
+  // ── MIC ─────────────────────────────────────────────
+  function toggleMic() {
+    if (isProcessing) return;
+    isListening ? stopMic() : startMic();
+  }
+
+  function startMic() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert('Voice requires Chrome. Please type instead.'); return; }
+    recognition = new SR();
+    recognition.lang = 'en-AU';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onstart  = () => { isListening = true; setUI('listening'); };
+    recognition.onresult = (e) => { const t = e.results[0][0].transcript; textInput.value = t; stopMic(); sendToAria(t); };
+    recognition.onerror  = () => { stopMic(); setUI('idle'); };
+    recognition.onend    = () => { isListening = false; if (!isProcessing) setUI('idle'); };
+    recognition.start();
+  }
+
+  function stopMic() { if (recognition) recognition.stop(); isListening = false; }
+
+  // ── SEND TO ARIA ─────────────────────────────────────
+  async function sendToAria(userText) {
+    if (!userText || isProcessing) return;
+    addMsg('user', userText);
+    isProcessing = true;
+    setUI('processing');
+    showTyping(true);
+
+    const now = new Date();
+    const tz  = 'Australia/Sydney';
+    const todayISO    = now.toLocaleDateString('en-CA', { timeZone: tz });
+    const tomorrowISO = (() => { const d = new Date(now); d.setDate(d.getDate()+1); return d.toLocaleDateString('en-CA', { timeZone: tz }); })();
+
+    try {
+      const res = await fetch(WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text:          userText,
+          session_id:    sessionId,
+          history:       conversationHistory,
+          today_date:    todayISO,
+          tomorrow_date: tomorrowISO
+        })
+      });
+
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      showTyping(false);
+
+      if (data.history && Array.isArray(data.history)) conversationHistory = data.history;
+
+      const reply = data.text || "Sorry, I didn't catch that. Please try again.";
+      addMsg('aria', reply);
+
+      if (data.audio) await playAudio(data.audio);
+      else speakBrowser(reply);
+
+    } catch (err) {
+      console.error('Aria error:', err);
+      showTyping(false);
+      const errMsg = "Sorry, I'm having trouble connecting. Please try again or call (02) 9876 5432.";
+      addMsg('aria', errMsg);
+      speakBrowser(errMsg);
+    } finally {
+      isProcessing = false;
+      textInput.value = '';
+      setUI('idle');
+    }
+  }
+
+  // ── AUDIO ────────────────────────────────────────────
+  async function playAudio(base64) {
+    try {
+      const binary = atob(base64);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const buffer = await audioCtx.decodeAudioData(bytes.buffer);
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+      setSpeaking(true);
+      return new Promise(resolve => { source.onended = () => { setSpeaking(false); resolve(); }; source.start(0); });
+    } catch(e) { setSpeaking(false); }
+  }
+
+  function speakBrowser(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const plain = text.replace(/\*\*(.*?)\*\*/g,'$1').replace(/\*(.*?)\*/g,'$1');
+    const utt   = new SpeechSynthesisUtterance(plain);
+    utt.lang    = 'en-AU'; utt.rate = 0.92; utt.pitch = 1.05;
+    const voices = speechSynthesis.getVoices();
+    const au = voices.find(v => v.lang === 'en-AU' || v.name.includes('Australian') || v.name.includes('Karen'));
+    if (au) utt.voice = au;
+    setSpeaking(true);
+    utt.onend   = () => setSpeaking(false);
+    utt.onerror = () => setSpeaking(false);
+    speechSynthesis.speak(utt);
+  }
+
+  // ── UI STATE ─────────────────────────────────────────
+  function setUI(state) {
+    micBtn.classList.remove('listening','processing');
+    statusDot.className = 'status-dot';
+    switch(state) {
+      case 'listening':
+        micBtn.classList.add('listening');
+        micLabel.textContent = 'Listening...';
+        statusText.textContent = 'Listening...';
+        statusDot.classList.add('listening');
+        break;
+      case 'processing':
+        micBtn.classList.add('processing');
+        micLabel.textContent = 'Processing...';
+        statusText.textContent = 'Thinking...';
+        statusDot.classList.add('thinking');
+        break;
+      default:
+        micLabel.textContent = 'Tap to speak';
+        statusText.textContent = 'Online & Ready';
+    }
+  }
+
+  function setSpeaking(on) {
+    avatar.classList.toggle('speaking', on);
+    avatarRing.classList.toggle('speaking', on);
+    if (on) statusText.textContent = 'Aria is speaking...';
+    else if (!isProcessing) statusText.textContent = 'Online & Ready';
+  }
+
+  function showTyping(show) {
+    typing.classList.toggle('active', show);
+    if (show) chatWindow.scrollTop = chatWindow.scrollHeight;
+  }
+
+  // ── MESSAGES ─────────────────────────────────────────
+  function addMsg(role, text) {
+    const wrap   = document.createElement('div');
+    wrap.className = `message ${role === 'aria' ? 'aria-msg' : 'user-msg'}`;
+    const av     = document.createElement('div');
+    av.className = 'msg-av';
+    av.textContent = role === 'aria' ? 'A' : 'You';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    if (role === 'aria') {
+      bubble.innerHTML = text
+        .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+        .replace(/\n/g,'<br>');
+    } else {
+      bubble.textContent = text;
+    }
+    wrap.appendChild(av);
+    wrap.appendChild(bubble);
+    chatWindow.appendChild(wrap);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+  }
+
+  function clearChat() {
+    sessionId = 'sess_' + Math.random().toString(36).slice(2);
+    conversationHistory = [];
+    chatWindow.innerHTML = '';
+    addMsg('aria', 'Chat cleared! How can I help you today?');
+  }
+</script>
 </body>
 </html>
