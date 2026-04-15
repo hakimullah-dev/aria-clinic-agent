@@ -1,5 +1,5 @@
 // ── CONFIG ───────────────────────────────────────────
-const WEBHOOK = 'https://corsproxy.io/?' + encodeURIComponent('https://n8n.srv1504760.hstgr.cloud/webhook/aria-agent');
+const WEBHOOK = '/api/aria';
 
 // ── STATE ─────────────────────────────────────────────
 let isListening  = false;

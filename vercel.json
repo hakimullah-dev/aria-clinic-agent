@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/aria",
+      "destination": "https://n8n.srv1504760.hstgr.cloud/webhook/aria-agent"
+    }
+  ]
+}
